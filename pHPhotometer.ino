@@ -2,26 +2,42 @@
 #include <DS1307RTC.h>
 #include <Time.h>
 #include <Wire.h>
-
+#include <MenuSystem.h>
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
-struct MENU{
-  unsigned int selectedIndex;
-  char** menuItems;
-  MenuFuncPtr* functions;
+MenuSystem ms;
+
+Menu rootMenu("pH Photometer");
+
+Menu sampleMenu("Sample >");
+MenuItem sampleRecordItem("Record");
+MenuItem sampleHistoryItem("History");
+
+Menu blankMenu("Blank >");
+MenuItem blankRecordItem("Record");
+MenuItem blankCurrentItem("Current Values");
+
+Menu settingsMenu("Settings >");
+MenuItem settingsTimeItem("Time");
+MenuItem settingsPhotoCal("Photometer Cal.");
+MenuItem settingsThermCal("Thermometer Cal.");
+MenuItem settingsCondCal("Conductivity Cal.");
+
+void setupMenu(){
+  rootMenu.add_menu(&sampleMenu);
+  sampleMenu.add_item(&sampleRecordItem, &recordSample);
+  sampleMenu.add_item(&sampleHistoryItem, &displayHistory);
+  
+  rootMenu.add_menu(&blankMenu);
+  blankMenu.add_item(&blankRecordItem, &recordBlank);
+  blankMenu.add_item(&blankCurrentItem, &displayBlank);
+  
+  rootMenu.add_menu(&settingsMenu);
+  
+  ms.set_root_menu(&rootMenu);
+    
+  displayMenu();
 }
-
-const int NUM_MENU_OPTIONS = 2;
-typedef void (* MenuFuncPtr) ();
-char* sampleStrings[NUM_MENU_OPTIONS] = {
-  "Record Blank",
-  "Record Sample"
-};
-
-MenuFuncPtr sampleFunctions[NUM_MENU_OPTIONS] = {
-  recordBlank,
-  recordSample
-};
 
 int potPin = 1; //detector pin
 int i;
@@ -39,13 +55,11 @@ void setup(){
   pinMode(7,OUTPUT);
   
   lcd.clear();
+  
+  setupMenu();
 }
 
-int x1[10];   //blank
-int y1[10];  //blank
-
-int x2[10];//sample
-int y2[10];//sample
+const int NUM_SAMPLES = 10;
 
 int x1a=0;
 int y1a=0;
@@ -61,27 +75,27 @@ void calculateBlank(){
 
   delay(2000);
 
-  for(i=1; i<11; i++){
-    x1[i]=analogRead(potPin);
+  for(i=0; i<NUM_SAMPLES; i++){
+    x1a += analogRead(potPin);
   }
     
-  x1a=(x1[1]+x1[2]+x1[3]+x1[4]+x1[5]+x1[6]+x1[7]+x1[8]+x1[9]+x1[10])/10 ; //read the blank
+  x1a /= NUM_SAMPLES; //read the blank
 
   digitalWrite(7,LOW);
   digitalWrite(6,HIGH);
 
   delay(2000);
 
-  for(i=1; i<11; i++){
-    y1[i]=analogRead(potPin);
+  for(i=0; i<NUM_SAMPLES; i++){
+    y1a+=analogRead(potPin);
   }
 
-  y1a=(y1[1]+y1[2]+y1[3]+y1[4]+y1[5]+y1[6]+y1[7]+y1[8]+y1[9]+y1[10])/10 ; //read the blank
+  y1a /= NUM_SAMPLES ; //read the blank
 
   digitalWrite(6,LOW);
 }
 
-void recordBlank(){
+void recordBlank(MenuItem*){
   lcd.clear();
   lcd.print("Recording");
   lcd.setCursor(0, 1);
@@ -90,14 +104,6 @@ void recordBlank(){
   calculateBlank();
 
   lcd.clear(); //clear
-  
-  const int NUM_RESULT_LINES;
-  char* resultLines[NUM_RESULT_LINES];
-  
-  resultLines[0] = "Blank(" + x1a + ")";
-  resultLines[1] = "Blank(" + y1a + ")";
-  
-  navigateResultLines(resultLines, NUM_RESULT_LINES);
 
   lcd.print("Blank(");
   lcd.print(x1a);
@@ -106,10 +112,15 @@ void recordBlank(){
   lcd.setCursor(0, 1) ;
   lcd.print("Blank(");
   lcd.print(y1a);
-  lcd.print(")"); 
+  lcd.print(")");
+  delay(1000);
 }
 
-void recordSample(){
+void displayBlank(MenuItem*){
+  
+}
+
+void recordSample(MenuItem*){
   lcd.clear();
   lcd.print("Recording");
   lcd.setCursor(0, 1);
@@ -118,10 +129,10 @@ void recordSample(){
 
   delay(2000);
 
-  for(i=1; i<11; i++){
-    x2[i]=analogRead(potPin);
+  for(i=0; i<NUM_SAMPLES; i++){
+    x2a += analogRead(potPin);
   }
-  x2a=(x2[1]+x2[2]+x2[3]+x2[4]+x2[5]+x2[6]+x2[7]+x2[8]+x2[9]+x2[10])/10 ; //read the sample
+  x2a /= NUM_SAMPLES; //read the sample
 
   Serial.print(x1a);
     
@@ -129,11 +140,11 @@ void recordSample(){
   digitalWrite(6,HIGH);
   delay(2000);
 
-  for(i=1; i<11; i++){
-    y2[i]=analogRead(potPin);
+  for(i=0; i<NUM_SAMPLES; i++){
+    y2a += analogRead(potPin);
   }
 
-  y2a=(y2[1]+y2[2]+y2[3]+y2[4]+y2[5]+y2[6]+y2[7]+y2[8]+y2[9]+y2[10])/10 ; //read the sample
+  y2a /= NUM_SAMPLES; //read the sample
 
   digitalWrite(6,LOW);
 
@@ -162,6 +173,11 @@ void recordSample(){
 
   Serial.print(y1a);
   Serial.print(y2a);
+  delay(1000);
+}
+
+void displayHistory(MenuItem*){
+  
 }
 
 #define btnRIGHT  0
@@ -190,18 +206,16 @@ int read_LCD_buttons(){               // read the buttons
     return btnNONE;                // when all others fail, return this.
 }
 
-int selectedMenuIndex = 0;
-
-
-
-MENU currentMenu
-
-char** menuItems = sampleStrings;
-MenuFuncPtr* functions = sampleFunctions;
-
-void updateMenu(int offset){
+void displayMenu(){
+  lcd.clear();
+  lcd.setCursor(0,0);
   
-  lcd.print(menuStrings[selectedMenuIndex]);
+  Menu const* cp_menu = ms.get_current_menu();
+  lcd.print(cp_menu->get_name());
+  
+  lcd.setCursor(0,1);
+  
+  lcd.print(cp_menu->get_selected()->get_name());
 }
 
 void loop(){
@@ -209,24 +223,29 @@ void loop(){
   
   switch (lcd_key){
     case btnSELECT:{
-      functions[selectedMenuIndex]();
+      ms.select();
+      displayMenu();
       break;
     }
     case btnUP:{
-      if (++selectedMenuIndex >= NUM_MENU_OPTIONS)
-        selectedMenuIndex = 0;
-      updateMenu();
+      ms.prev();
+      displayMenu();
       break;
     }
     case btnDOWN:{
-      if (--selectedMenuIndex < 0)
-        selectedMenuIndex = NUM_MENU_OPTIONS - 1;
-      updateMenu();
+      ms.next();
+      displayMenu();
       break;
     }
     case btnLEFT:{
-      menuItems = sampleStrings;
-      functions = sampleFunctions;
+      ms.back();
+      displayMenu();
+      break;
+    }
+    case btnRIGHT:{
+      ms.select();
+      displayMenu();
+      break;
     }
   }
   delay(150);
