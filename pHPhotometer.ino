@@ -1,10 +1,12 @@
 #include <LiquidCrystal.h>   //use LCD library
+#include <SD.h>
 #include <DS1307RTC.h>
 #include <Time.h>
 #include <Wire.h>
 #include <MenuSystem.h>
 #include "Photometer.h"
 
+Photometer photometer(7, 6, 1);
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
 MenuSystem ms;
@@ -41,7 +43,51 @@ void setupMenu(){
   displayMenu();
 }
 
-Photometer photometer(7, 6, 1);
+void print2digits(int number, Print* printer){
+  if (number >=0 && number < 10){
+    printer->write('0');
+  }
+  printer->print(number);
+}
+
+void writeISO8601(tmElements_t* tm, Print* printer){
+  printer->print(tmYearToCalendar(tm->Year));
+  printer->print("-");
+  print2digits(tm->Month, printer);
+  printer->print("-");
+  print2digits(tm->Day, printer);
+  printer->print("T");
+  print2digits(tm->Hour, printer);
+  printer->print(":");
+  print2digits(tm->Minute, printer);
+  printer->print(":");
+  print2digits(tm->Second, printer);
+  printer->print("Z");
+}
+
+void writeLog(char* message){
+  File logFile = SD.open("log.txt", FILE_WRITE);
+  
+  tmElements_t tm;
+  if(RTC.read(tm)){
+    writeISO8601(&tm, &logFile);
+    logFile.print(", ");
+  } else {
+    logFile.print("None, ");
+  }
+  logFile.println(message);
+  logFile.close();
+}
+
+boolean setupSDCard(){
+  pinMode(10, OUTPUT);
+  if(!SD.begin(3)){
+    Serial.println("SD Initialization Failed!");
+    return false;
+  }
+  writeLog("Photometer Started");
+  return true;
+}
 
 void setup(){
   Serial.begin(9600);
@@ -52,10 +98,30 @@ void setup(){
 
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
-  
   lcd.clear();
   
+  if(!setupSDCard()){
+    lcd.print("Error: Check Serial Debugger");
+    return;
+  }
+  
   setupMenu();
+}
+
+void writeBlank(PHOTOREADING* blank){
+  File blankFile = SD.open("blank.csv", FILE_WRITE);
+  
+  tmElements_t tm;
+  if(RTC.read(tm)){
+    writeISO8601(&tm, &blankFile);
+    blankFile.print(",");
+  } else {
+    blankFile.print("None,");
+  }
+  blankFile.print(blank->x);
+  blankFile.print(",");
+  blankFile.println(blank->y);
+  blankFile.close();
 }
 
 void displayBlank(PHOTOREADING* blank){  
@@ -83,6 +149,7 @@ void recordBlank(MenuItem*){
   PHOTOREADING blank;
   photometer.getBlank(&blank);
   displayBlank(&blank);
+  writeBlank(&blank);
 }
 
 void displayBlankSelected(MenuItem*){
