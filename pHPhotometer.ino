@@ -3,6 +3,8 @@
 #include <Time.h>
 #include <Wire.h>
 #include <MenuSystem.h>
+#include "Photometer.h"
+
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
 MenuSystem ms;
@@ -26,11 +28,11 @@ MenuItem settingsCondCal("Conductivity Cal.");
 void setupMenu(){
   rootMenu.add_menu(&sampleMenu);
   sampleMenu.add_item(&sampleRecordItem, &recordSample);
-  sampleMenu.add_item(&sampleHistoryItem, &displayHistory);
+  sampleMenu.add_item(&sampleHistoryItem, &displaySampleHistory);
   
   rootMenu.add_menu(&blankMenu);
   blankMenu.add_item(&blankRecordItem, &recordBlank);
-  blankMenu.add_item(&blankCurrentItem, &displayBlank);
+  blankMenu.add_item(&blankCurrentItem, &displayBlankSelected);
   
   rootMenu.add_menu(&settingsMenu);
   
@@ -39,8 +41,7 @@ void setupMenu(){
   displayMenu();
 }
 
-int potPin = 1; //detector pin
-int i;
+Photometer photometer(7, 6, 1);
 
 void setup(){
   Serial.begin(9600);
@@ -51,48 +52,24 @@ void setup(){
 
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
-  pinMode(6,OUTPUT);
-  pinMode(7,OUTPUT);
   
   lcd.clear();
   
   setupMenu();
 }
 
-const int NUM_SAMPLES = 10;
+void displayBlank(PHOTOREADING* blank){  
+  lcd.clear(); //clear
 
-int x1a=0;
-int y1a=0;
-int x2a=0;
-int y2a=0;
+  lcd.print("Blank(");
+  lcd.print(blank->x);
+  lcd.print(")");
 
-float A_1 = 0.000;//absorbance
-float A_2 = 0.000;//absorbance
-float R=0.000;
-
-void calculateBlank(){
-  digitalWrite(7,HIGH);
-
-  delay(2000);
-
-  for(i=0; i<NUM_SAMPLES; i++){
-    x1a += analogRead(potPin);
-  }
-    
-  x1a /= NUM_SAMPLES; //read the blank
-
-  digitalWrite(7,LOW);
-  digitalWrite(6,HIGH);
-
-  delay(2000);
-
-  for(i=0; i<NUM_SAMPLES; i++){
-    y1a+=analogRead(potPin);
-  }
-
-  y1a /= NUM_SAMPLES ; //read the blank
-
-  digitalWrite(6,LOW);
+  lcd.setCursor(0, 1) ;
+  lcd.print("Blank(");
+  lcd.print(blank->y);
+  lcd.print(")");
+  delay(1000);
 }
 
 void recordBlank(MenuItem*){
@@ -101,23 +78,44 @@ void recordBlank(MenuItem*){
   lcd.setCursor(0, 1);
   lcd.print("Blank...");
   
-  calculateBlank();
+  photometer.takeBlank();
+  
+  PHOTOREADING blank;
+  photometer.getBlank(&blank);
+  displayBlank(&blank);
+}
 
-  lcd.clear(); //clear
+void displayBlankSelected(MenuItem*){
+  PHOTOREADING blank;
+  photometer.getBlank(&blank);
+  
+  displayBlank(&blank);
+}
 
-  lcd.print("Blank(");
-  lcd.print(x1a);
+void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
+  lcd.clear(); 
+
+  lcd.print("A1=");
+  lcd.print(absReading->A1,3);
+  lcd.print("(");
+  lcd.print(sample->x);
   lcd.print(")");
 
   lcd.setCursor(0, 1) ;
-  lcd.print("Blank(");
-  lcd.print(y1a);
-  lcd.print(")");
-  delay(1000);
-}
 
-void displayBlank(MenuItem*){
+  lcd.print("A2=");
+  lcd.print(absReading->A2,3);
+  lcd.print("(");
+  lcd.print(sample->y);
+  lcd.print(")");
+
+  Serial.print(blank->x);
+  Serial.print(sample->x);
+
+  Serial.print(blank->y);
+  Serial.print(sample->y);
   
+  delay(1000);
 }
 
 void recordSample(MenuItem*){
@@ -125,58 +123,19 @@ void recordSample(MenuItem*){
   lcd.print("Recording");
   lcd.setCursor(0, 1);
   lcd.print("Sample...");
-  digitalWrite(7,HIGH);
-
-  delay(2000);
-
-  for(i=0; i<NUM_SAMPLES; i++){
-    x2a += analogRead(potPin);
-  }
-  x2a /= NUM_SAMPLES; //read the sample
-
-  Serial.print(x1a);
-    
-  digitalWrite(7,LOW);
-  digitalWrite(6,HIGH);
-  delay(2000);
-
-  for(i=0; i<NUM_SAMPLES; i++){
-    y2a += analogRead(potPin);
-  }
-
-  y2a /= NUM_SAMPLES; //read the sample
-
-  digitalWrite(6,LOW);
-
-  A_1 = log((float)x1a/(float)x2a)/(log(10));//calculate the absorbance
-  A_2 = log((float)y1a/(float)y2a)/(log(10));//calculate the absorbance
-  R=(float)A_2/(float)A_1;
-
-  lcd.clear(); 
-
-  lcd.print("A1=");
-  lcd.print(A_1,3);
-  lcd.print("(");
-  lcd.print(x2a);
-  lcd.print(")");
-
-  lcd.setCursor(0, 1) ;
-
-  lcd.print("A2=");
-  lcd.print(A_2,3);
-  lcd.print("(");
-  lcd.print(y2a);
-  lcd.print(")");
-
-  Serial.print(x1a);
-  Serial.print(x2a);
-
-  Serial.print(y1a);
-  Serial.print(y2a);
-  delay(1000);
+  
+  photometer.takeSample();
+  
+  PHOTOREADING blank, sample;
+  ABSREADING absReading;
+  photometer.getBlank(&blank);
+  photometer.getSample(&sample);
+  photometer.getAbsorbance(&absReading);
+  
+  displaySample(&blank, &sample, &absReading);
 }
 
-void displayHistory(MenuItem*){
+void displaySampleHistory(MenuItem*){
   
 }
 
@@ -248,5 +207,5 @@ void loop(){
       break;
     }
   }
-  delay(150);
+  delay(100);
 }
