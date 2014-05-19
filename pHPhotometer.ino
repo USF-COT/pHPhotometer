@@ -3,10 +3,29 @@
 #include <DS1307RTC.h>
 #include <Time.h>
 #include <Wire.h>
+#include <OneWire.h>
 #include <MenuSystem.h>
 #include "Photometer.h"
+#include "ECTShield.h"
+#include "Adafruit_MCP23008.h"
 
-Photometer photometer(7, 6, 1);
+Adafruit_MCP23008 mcp;
+
+const byte blueLEDPin = 0;
+const byte greenLEDPin = 7;
+const byte detectorPin = 1;
+
+void blueLEDControl(int level){
+  mcp.digitalWrite(0, level);
+}
+void greenLEDControl(int level){
+  mcp.digitalWrite(7, level);
+}
+int readLightConverter(){
+  return analogRead(1);
+}
+
+Photometer photometer(blueLEDControl, greenLEDControl, readLightConverter);
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
 MenuSystem ms;
@@ -24,8 +43,25 @@ MenuItem blankCurrentItem("Current Values");
 Menu settingsMenu("Settings >");
 MenuItem settingsTimeItem("Time");
 MenuItem settingsPhotoCal("Photometer Cal.");
-MenuItem settingsThermCal("Thermometer Cal.");
-MenuItem settingsCondCal("Conductivity Cal.");
+Menu settingsThermCalMenu("Thermometer Cal.");
+MenuItem settingsThermCalMin("Calibrate Min");
+MenuItem settingsThermCalMax("Calibrate Max");
+Menu settingsCondCalMenu("Conductivity Cal.");
+MenuItem settingsCondCalMin("Calibrate Min");
+MenuItem settingsCondCalMax("Calibrate Max");
+
+void calThermMinSelected(MenuItem*){
+  
+}
+
+void calThermMaxSelected(MenuItem*){
+}
+
+void calCondMinSelected(MenuItem*){
+}
+
+void calCondMaxSelected(MenuItem*){
+}
 
 void setupMenu(){
   rootMenu.add_menu(&sampleMenu);
@@ -37,6 +73,14 @@ void setupMenu(){
   blankMenu.add_item(&blankCurrentItem, &displayBlankSelected);
   
   rootMenu.add_menu(&settingsMenu);
+  // Thermometer Calibration Sub-menu
+  settingsMenu.add_menu(&settingsThermCalMenu);
+  settingsThermCalMenu.add_item(&settingsThermCalMin, &calThermMinSelected);
+  settingsThermCalMenu.add_item(&settingsThermCalMax, &calThermMaxSelected);
+  // Conductivity Calibration Sub-menu
+  settingsMenu.add_menu(&settingsCondCalMenu);
+  settingsCondCalMenu.add_item(&settingsCondCalMin, &calCondMinSelected);
+  settingsCondCalMenu.add_item(&settingsCondCalMax, &calCondMaxSelected);
   
   ms.set_root_menu(&rootMenu);
     
@@ -99,6 +143,9 @@ void setup(){
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
   lcd.clear();
+  
+  mcp.pinMode(0, OUTPUT);
+  mcp.pinMode(7, OUTPUT);
   
   if(!setupSDCard()){
     lcd.print("Error: Check Serial Debugger");

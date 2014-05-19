@@ -11,6 +11,9 @@
 
 #include <Arduino.h>
 
+typedef void (* PinControlFunPtr) (int);
+typedef int (* DetectorReadFunPtr) ();
+
 struct PHOTOREADING{
   int x;
   int y;
@@ -24,14 +27,15 @@ struct ABSREADING{
 
 class Photometer{
   private:
-    byte xLightPin, yLightPin, detectorPin;
+    PinControlFunPtr xLightControl, yLightControl;
+    DetectorReadFunPtr detectorRead;
     
     PHOTOREADING blank, sample;
     ABSREADING absReading;
     
   
   public:
-    Photometer(byte xLightPin, byte yLightPin, byte detectorPin);
+    Photometer(PinControlFunPtr xLightControl, PinControlFunPtr yLightControl, DetectorReadFunPtr detectorRead);
     ~Photometer();
     void takeBlank();
     void takeSample();

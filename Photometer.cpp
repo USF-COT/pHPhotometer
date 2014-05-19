@@ -1,12 +1,9 @@
 #include "Photometer.h"
 
-Photometer::Photometer(byte xLightPin, byte yLightPin, byte detectorPin){
-  this->xLightPin = xLightPin;
-  this->yLightPin = yLightPin;
-  this->detectorPin = detectorPin;
-  
-  pinMode(this->xLightPin, OUTPUT);
-  pinMode(this->yLightPin, OUTPUT);
+Photometer::Photometer(PinControlFunPtr xLightControl, PinControlFunPtr yLightControl, DetectorReadFunPtr detectorRead){
+  this->xLightControl = xLightControl;
+  this->yLightControl = yLightControl;
+  this->detectorRead = detectorRead;
   
   this->sample.x = this->sample.y = 0;
   this->blank.x = this->blank.y = 0;
@@ -15,30 +12,30 @@ Photometer::Photometer(byte xLightPin, byte yLightPin, byte detectorPin){
 Photometer::~Photometer(){
 }
 
-int averageSample(byte lightPin, byte detectorPin){
+int averageSample(PinControlFunPtr lightControl, DetectorReadFunPtr detectorRead){
   const int NUM_SAMPLES = 10;
   const int LIGHT_DELAY = 2000;
   
-  digitalWrite(lightPin, HIGH);
+  lightControl(HIGH);
   delay(LIGHT_DELAY);
   
   int sample = 0;
   for(unsigned short i=0; i < NUM_SAMPLES; ++i){
-    sample += analogRead(detectorPin);
+    sample += detectorRead();
   }
   return sample /= NUM_SAMPLES;
   
-  digitalWrite(lightPin, LOW);
+  lightControl(LOW);
 }
 
 void Photometer::takeBlank(){
-  this->blank.x = averageSample(this->xLightPin, this->detectorPin);
-  this->blank.y = averageSample(this->yLightPin, this->detectorPin);
+  this->blank.x = averageSample(this->xLightControl, this->detectorRead);
+  this->blank.y = averageSample(this->yLightControl, this->detectorRead);
 }
 
 void Photometer::takeSample(){
-  this->sample.x = averageSample(this->xLightPin, this->detectorPin);
-  this->sample.y = averageSample(this->yLightPin, this->detectorPin);
+  this->sample.x = averageSample(this->xLightControl, this->detectorRead);
+  this->sample.y = averageSample(this->yLightControl, this->detectorRead);
 
   this->absReading.A1 = log((float)this->blank.x/(float)this->sample.x)/(log(10));//calculate the absorbance
   this->absReading.A2 = log((float)this->blank.y/(float)this->sample.y)/(log(10));//calculate the absorbance
