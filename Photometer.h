@@ -20,9 +20,9 @@ struct PHOTOREADING{
 };
 
 struct ABSREADING{
-  int A1;
-  int A2;
-  int R;
+  float A1;
+  float A2;
+  float R;
 };
 
 class Photometer{
@@ -37,6 +37,7 @@ class Photometer{
   public:
     Photometer(PinControlFunPtr xLightControl, PinControlFunPtr yLightControl, DetectorReadFunPtr detectorRead);
     ~Photometer();
+    
     void takeBlank();
     void takeSample();
     

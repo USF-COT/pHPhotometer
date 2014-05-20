@@ -1,4 +1,5 @@
 #include <LiquidCrystal.h>   //use LCD library
+#include <SPI.h>
 #include <SD.h>
 #include <DS1307RTC.h>
 #include <Time.h>
@@ -124,7 +125,8 @@ void writeLog(char* message){
 }
 
 boolean setupSDCard(){
-  pinMode(10, OUTPUT);
+  pinMode(3, OUTPUT);
+  pinMode(10, OUTPUT); // SS pin must be configured as an output
   if(!SD.begin(3)){
     Serial.println("SD Initialization Failed!");
     return false;
@@ -137,13 +139,14 @@ void setup(){
   Serial.begin(9600);
   while(!Serial);  // Wait for serial
   delay(200);
-
+  
   lcd.begin(16, 2);  //Initialize LCD
 
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
   lcd.clear();
   
+  // Initialize blue and green outputs
   mcp.pinMode(0, OUTPUT);
   mcp.pinMode(7, OUTPUT);
   
@@ -156,6 +159,16 @@ void setup(){
 }
 
 void writeBlank(PHOTOREADING* blank){
+  /*
+  File blankFile;
+  if(!SD.exists("blank.csv")){
+    blankFile = SD.open("blank.csv", FILE_WRITE);
+    blankFile.println("Timestamp,Blank Blue, Blank Green");
+  } else {
+    blankFile = SD.open("blank.csv", FILE_WRITE);
+  }
+  */
+  
   File blankFile = SD.open("blank.csv", FILE_WRITE);
   
   tmElements_t tm;
@@ -182,6 +195,7 @@ void displayBlank(PHOTOREADING* blank){
   lcd.print("Blank(");
   lcd.print(blank->y);
   lcd.print(")");
+  
   delay(1000);
 }
 
@@ -206,6 +220,42 @@ void displayBlankSelected(MenuItem*){
   displayBlank(&blank);
 }
 
+void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
+  /*
+  File samplesFile;
+  if(!SD.exists("samples.csv")){
+    samplesFile = SD.open("samples.csv", FILE_WRITE);
+    samplesFile.println("Timestamp,Blank Blue, Blank Green, Sample Blue, Sample Green, Absorbance A1, Absorbance A2, R");
+  } else {
+    samplesFile = SD.open("samples.csv", FILE_WRITE);
+  }
+  */
+  
+  File samplesFile = SD.open("samples.csv", FILE_WRITE);
+  
+  tmElements_t tm;
+  if(RTC.read(tm)){
+    writeISO8601(&tm, &samplesFile);
+    samplesFile.print(",");
+  } else {
+    samplesFile.print("None,");
+  }
+  samplesFile.print(blank->x);
+  samplesFile.print(",");
+  samplesFile.print(blank->y);
+  samplesFile.print(",");
+  samplesFile.print(sample->x);
+  samplesFile.print(",");
+  samplesFile.print(sample->y);
+  samplesFile.print(",");
+  samplesFile.print(absReading->A1);
+  samplesFile.print(",");
+  samplesFile.print(absReading->A2);
+  samplesFile.print(",");
+  samplesFile.println(absReading->R);
+  samplesFile.close();
+}
+
 void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
   lcd.clear(); 
 
@@ -222,12 +272,6 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.print("(");
   lcd.print(sample->y);
   lcd.print(")");
-
-  Serial.print(blank->x);
-  Serial.print(sample->x);
-
-  Serial.print(blank->y);
-  Serial.print(sample->y);
   
   delay(1000);
 }
@@ -247,6 +291,7 @@ void recordSample(MenuItem*){
   photometer.getAbsorbance(&absReading);
   
   displaySample(&blank, &sample, &absReading);
+  writeSample(&blank, &sample, &absReading);
 }
 
 void displaySampleHistory(MenuItem*){
@@ -294,6 +339,7 @@ void displayMenu(){
 void loop(){
   int lcd_key = read_LCD_buttons();
   
+  
   switch (lcd_key){
     case btnSELECT:{
       ms.select();
@@ -321,5 +367,5 @@ void loop(){
       break;
     }
   }
-  delay(100);
+  delay(140);
 }
