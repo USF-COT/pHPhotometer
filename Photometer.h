@@ -20,8 +20,8 @@ struct PHOTOREADING{
 };
 
 struct ABSREADING{
-  float A1;
-  float A2;
+  float Abs1;
+  float Abs2;
   float R;
 };
 

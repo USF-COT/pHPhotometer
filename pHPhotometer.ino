@@ -1,5 +1,4 @@
 #include <LiquidCrystal.h>   //use LCD library
-#include <SPI.h>
 #include <SD.h>
 #include <DS1307RTC.h>
 #include <Time.h>
@@ -125,9 +124,8 @@ void writeLog(char* message){
 }
 
 boolean setupSDCard(){
-  pinMode(3, OUTPUT);
   pinMode(10, OUTPUT); // SS pin must be configured as an output
-  if(!SD.begin(3)){
+  if(!SD.begin()){
     Serial.println("SD Initialization Failed!");
     return false;
   }
@@ -138,7 +136,6 @@ boolean setupSDCard(){
 void setup(){
   Serial.begin(9600);
   while(!Serial);  // Wait for serial
-  delay(200);
   
   lcd.begin(16, 2);  //Initialize LCD
 
@@ -151,7 +148,9 @@ void setup(){
   mcp.pinMode(7, OUTPUT);
   
   if(!setupSDCard()){
-    lcd.print("Error: Check Serial Debugger");
+    lcd.print("Error:");
+    lcd.setCursor(0,1);
+    lcd.print("Check Serial Debugger");
     return;
   }
   
@@ -248,9 +247,9 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
   samplesFile.print(",");
   samplesFile.print(sample->y);
   samplesFile.print(",");
-  samplesFile.print(absReading->A1);
+  samplesFile.print(absReading->Abs1);
   samplesFile.print(",");
-  samplesFile.print(absReading->A2);
+  samplesFile.print(absReading->Abs2);
   samplesFile.print(",");
   samplesFile.println(absReading->R);
   samplesFile.close();
@@ -260,7 +259,7 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.clear(); 
 
   lcd.print("A1=");
-  lcd.print(absReading->A1,3);
+  lcd.print(absReading->Abs1,3);
   lcd.print("(");
   lcd.print(sample->x);
   lcd.print(")");
@@ -268,7 +267,7 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.setCursor(0, 1) ;
 
   lcd.print("A2=");
-  lcd.print(absReading->A2,3);
+  lcd.print(absReading->Abs2,3);
   lcd.print("(");
   lcd.print(sample->y);
   lcd.print(")");

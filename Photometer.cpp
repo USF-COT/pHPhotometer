@@ -37,9 +37,9 @@ void Photometer::takeSample(){
   this->sample.x = averageSample(this->xLightControl, this->detectorRead);
   this->sample.y = averageSample(this->yLightControl, this->detectorRead);
 
-  this->absReading.A1 = log((float)this->blank.x/(float)this->sample.x)/(log(10));//calculate the absorbance
-  this->absReading.A2 = log((float)this->blank.y/(float)this->sample.y)/(log(10));//calculate the absorbance
-  this->absReading.R=(float)this->absReading.A2/(float)this->absReading.A1;
+  this->absReading.Abs1 = log((float)this->blank.x/(float)this->sample.x)/(log(10));//calculate the absorbance
+  this->absReading.Abs2 = log((float)this->blank.y/(float)this->sample.y)/(log(10));//calculate the absorbance
+  this->absReading.R=(float)this->absReading.Abs2/(float)this->absReading.Abs1;
 }
     
 void Photometer::getBlank(PHOTOREADING* dest){
@@ -52,7 +52,7 @@ void Photometer::getSample(PHOTOREADING* dest){
 }
 
 void Photometer::getAbsorbance(ABSREADING* dest){
-  dest->A1 = this->absReading.A1;
-  dest->A2 = this->absReading.A2;
+  dest->Abs1 = this->absReading.Abs1;
+  dest->Abs2 = this->absReading.Abs2;
   dest->R = this->absReading.R;
 }
