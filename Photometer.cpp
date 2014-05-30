@@ -1,19 +1,19 @@
 #include "Photometer.h"
 
-Photometer::Photometer(PinControlFunPtr xLightControl, PinControlFunPtr yLightControl, DetectorReadFunPtr detectorRead){
-  this->xLightControl = xLightControl;
-  this->yLightControl = yLightControl;
+Photometer::Photometer(PinControlFunPtr blueLightControl, PinControlFunPtr greenLightControl, DetectorReadFunPtr detectorRead){
+  this->blueLightControl = blueLightControl;
+  this->greenLightControl = greenLightControl;
   this->detectorRead = detectorRead;
   
-  this->sample.x = this->sample.y = 0;
-  this->blank.x = this->blank.y = 0;
+  this->sample.blue = this->sample.green = 0;
+  this->blank.blue = this->blank.green = 0;
 }
 
 Photometer::~Photometer(){
 }
 
-int averageSample(PinControlFunPtr lightControl, DetectorReadFunPtr detectorRead){
-  const int NUM_SAMPLES = 10;
+float averageSample(PinControlFunPtr lightControl, DetectorReadFunPtr detectorRead){
+  const float NUM_SAMPLES = 10;
   const int LIGHT_DELAY = 2000;
   
   lightControl(HIGH);
@@ -29,26 +29,26 @@ int averageSample(PinControlFunPtr lightControl, DetectorReadFunPtr detectorRead
 }
 
 void Photometer::takeBlank(){
-  this->blank.x = averageSample(this->xLightControl, this->detectorRead);
-  this->blank.y = averageSample(this->yLightControl, this->detectorRead);
+  this->blank.blue = averageSample(this->blueLightControl, this->detectorRead);
+  this->blank.green = averageSample(this->greenLightControl, this->detectorRead);
 }
 
 void Photometer::takeSample(){
-  this->sample.x = averageSample(this->xLightControl, this->detectorRead);
-  this->sample.y = averageSample(this->yLightControl, this->detectorRead);
+  this->sample.blue = averageSample(this->blueLightControl, this->detectorRead);
+  this->sample.green = averageSample(this->greenLightControl, this->detectorRead);
 
-  this->absReading.Abs1 = log((float)this->blank.x/(float)this->sample.x)/(log(10));//calculate the absorbance
-  this->absReading.Abs2 = log((float)this->blank.y/(float)this->sample.y)/(log(10));//calculate the absorbance
+  this->absReading.Abs1 = log((float)this->blank.blue/(float)this->sample.blue)/(log(10));//calculate the absorbance
+  this->absReading.Abs2 = log((float)this->blank.green/(float)this->sample.green)/(log(10));//calculate the absorbance
   this->absReading.R=(float)this->absReading.Abs2/(float)this->absReading.Abs1;
 }
     
 void Photometer::getBlank(PHOTOREADING* dest){
-  dest->x = this->blank.x;
-  dest->y = this->blank.y;
+  dest->blue = this->blank.blue;
+  dest->green = this->blank.green;
 }
 void Photometer::getSample(PHOTOREADING* dest){
-  dest->x = this->sample.x;
-  dest->y = this->sample.y;
+  dest->blue = this->sample.blue;
+  dest->green = this->sample.green;
 }
 
 void Photometer::getAbsorbance(ABSREADING* dest){

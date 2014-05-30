@@ -1,13 +1,15 @@
-#include <LiquidCrystal.h>   //use LCD library
-#include <SD.h>
+#include <SdFat.h>
+#include <Wire.h>
 #include <DS1307RTC.h>
 #include <Time.h>
-#include <Wire.h>
-#include <OneWire.h>
+#include <LiquidCrystal.h>   //use LCD library
 #include <MenuSystem.h>
+#include <MemoryFree.h>
+#include <stdlib.h>
 #include "Photometer.h"
-#include "ECTShield.h"
 #include "Adafruit_MCP23008.h"
+
+SdFat sd;
 
 Adafruit_MCP23008 mcp;
 
@@ -40,51 +42,72 @@ Menu blankMenu("Blank >");
 MenuItem blankRecordItem("Record");
 MenuItem blankCurrentItem("Current Values");
 
+/*
 Menu settingsMenu("Settings >");
 MenuItem settingsTimeItem("Time");
 MenuItem settingsPhotoCal("Photometer Cal.");
 Menu settingsThermCalMenu("Thermometer Cal.");
-MenuItem settingsThermCalMin("Calibrate Min");
-MenuItem settingsThermCalMax("Calibrate Max");
+MenuItem settingsThermCalAddPoint("Add Point");
+MenuItem settingsThermCalEditPoints("Edit Points");
+MenuItem settingsThermCalViewParams("View Cal.");
+MenuItem settingsThermCalRecalculate("Recalculate");
 Menu settingsCondCalMenu("Conductivity Cal.");
-MenuItem settingsCondCalMin("Calibrate Min");
-MenuItem settingsCondCalMax("Calibrate Max");
+MenuItem settingsCondCalAddPoint("Add Point");
+MenuItem settingsCondCalEditPoints("Edit Points");
+MenuItem settingsCondCalViewParams("View Cal.");
+MenuItem settingsCondCalRecalculate("Recalculate");
+*/
 
-void calThermMinSelected(MenuItem*){
+void printFreeMemory(){
+  Serial.print("freeMemory()=");
+  Serial.println(freeMemory());
+}
+
+void calThermAddPointSelected(MenuItem*){
   
 }
 
-void calThermMaxSelected(MenuItem*){
+void calThermEditPointsSelected(MenuItem*){
 }
 
-void calCondMinSelected(MenuItem*){
+void calThermViewCalSelected(MenuItem*){
+  
 }
 
-void calCondMaxSelected(MenuItem*){
+void calThermRecalculateSelected(MenuItem*){
+  
 }
 
 void setupMenu(){
   rootMenu.add_menu(&sampleMenu);
   sampleMenu.add_item(&sampleRecordItem, &recordSample);
-  sampleMenu.add_item(&sampleHistoryItem, &displaySampleHistory);
+  //sampleMenu.add_item(&sampleHistoryItem, &displaySampleHistory);
   
   rootMenu.add_menu(&blankMenu);
   blankMenu.add_item(&blankRecordItem, &recordBlank);
   blankMenu.add_item(&blankCurrentItem, &displayBlankSelected);
   
+  /*
   rootMenu.add_menu(&settingsMenu);
   // Thermometer Calibration Sub-menu
   settingsMenu.add_menu(&settingsThermCalMenu);
-  settingsThermCalMenu.add_item(&settingsThermCalMin, &calThermMinSelected);
-  settingsThermCalMenu.add_item(&settingsThermCalMax, &calThermMaxSelected);
-  // Conductivity Calibration Sub-menu
-  settingsMenu.add_menu(&settingsCondCalMenu);
-  settingsCondCalMenu.add_item(&settingsCondCalMin, &calCondMinSelected);
-  settingsCondCalMenu.add_item(&settingsCondCalMax, &calCondMaxSelected);
+  settingsThermCalMenu.add_item(&settingsThermCalAddPoint, &calThermAddPointSelected);
+  settingsThermCalMenu.add_item(&settingsThermCalEditPoints, &calThermEditPointsSelected);
+  settingsThermCalMenu.add_item(&settingsThermCalViewParams, &calThermViewCalSelected);
+  settingsThermCalMenu.add_item(&settingsThermCalRecalculate, &calThermRecalculateSelected);
+  */
   
   ms.set_root_menu(&rootMenu);
     
   displayMenu();
+}
+
+void dateTime(uint16_t* date, uint16_t* time){
+  tmElements_t tm;
+  if(RTC.read(tm)){
+    *date = FAT_DATE(tmYearToCalendar(tm.Year), tm.Month, tm.Day);
+    *time = FAT_TIME(tm.Hour, tm.Minute, tm.Second);
+  }
 }
 
 void print2digits(int number, Print* printer){
@@ -110,23 +133,33 @@ void writeISO8601(tmElements_t* tm, Print* printer){
 }
 
 void writeLog(char* message){
-  File logFile = SD.open("log.txt", FILE_WRITE);
+  SdFile logFile;
   
-  tmElements_t tm;
-  if(RTC.read(tm)){
-    writeISO8601(&tm, &logFile);
-    logFile.print(", ");
+  if(logFile.open("LOG.TXT", O_RDWR | O_CREAT | O_AT_END)){
+    tmElements_t tm;
+    if(RTC.read(tm)){
+      writeISO8601(&tm, &logFile);
+      logFile.print(",");
+    } else {
+      logFile.print("None,");
+    }
+    logFile.println(message);
+    logFile.close();
   } else {
-    logFile.print("None, ");
+    lcd.print("Error writing");
+    lcd.setCursor(0, 1);
+    lcd.print("log file!");
+    sd.errorHalt("Opening log.txt failed");
   }
-  logFile.println(message);
-  logFile.close();
 }
 
 boolean setupSDCard(){
-  pinMode(10, OUTPUT); // SS pin must be configured as an output
-  if(!SD.begin()){
-    Serial.println("SD Initialization Failed!");
+  SdFile::dateTimeCallback(dateTime);
+  if(!sd.begin(A3, SPI_FULL_SPEED)){
+    lcd.print("Card Error:");
+    lcd.setCursor(0,1);
+    lcd.print("Check Serial");
+    sd.initErrorHalt();
     return false;
   }
   writeLog("Photometer Started");
@@ -137,7 +170,11 @@ void setup(){
   Serial.begin(9600);
   while(!Serial);  // Wait for serial
   
+  printFreeMemory();
+  
   lcd.begin(16, 2);  //Initialize LCD
+  pinMode(10, OUTPUT);
+  digitalWrite(10, HIGH);
 
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
@@ -147,55 +184,55 @@ void setup(){
   mcp.pinMode(0, OUTPUT);
   mcp.pinMode(7, OUTPUT);
   
-  if(!setupSDCard()){
-    lcd.print("Error:");
-    lcd.setCursor(0,1);
-    lcd.print("Check Serial Debugger");
-    return;
-  }
+  setupSDCard();
   
   setupMenu();
 }
 
 void writeBlank(PHOTOREADING* blank){
-  /*
-  File blankFile;
-  if(!SD.exists("blank.csv")){
-    blankFile = SD.open("blank.csv", FILE_WRITE);
-    blankFile.println("Timestamp,Blank Blue, Blank Green");
-  } else {
-    blankFile = SD.open("blank.csv", FILE_WRITE);
-  }
-  */
+  SdFile blankFile;
   
-  File blankFile = SD.open("blank.csv", FILE_WRITE);
-  
-  tmElements_t tm;
-  if(RTC.read(tm)){
-    writeISO8601(&tm, &blankFile);
+  if(blankFile.open("BLANK.CSV", O_RDWR | O_CREAT | O_AT_END)){
+    FatPos_t pos;
+    blankFile.getpos(&pos);
+    if(pos.position == 0){
+      blankFile.print("Timestamp,");
+      blankFile.print("Blank Blue,");
+      blankFile.println("Blank Green");
+    }
+    
+    tmElements_t tm;
+    if(RTC.read(tm)){
+      writeISO8601(&tm, &blankFile);
+      blankFile.print(",");
+    } else {
+      blankFile.print("None,");
+    }
+    blankFile.print(blank->blue);
     blankFile.print(",");
+    blankFile.println(blank->green);
+    blankFile.close();
   } else {
-    blankFile.print("None,");
+    lcd.clear();
+    lcd.print("Error writing");
+    lcd.setCursor(0, 1);
+    lcd.print("blank reading!");
+    sd.errorHalt("Opening blank.csv failed!");
   }
-  blankFile.print(blank->x);
-  blankFile.print(",");
-  blankFile.println(blank->y);
-  blankFile.close();
 }
 
 void displayBlank(PHOTOREADING* blank){  
   lcd.clear(); //clear
 
   lcd.print("Blank(");
-  lcd.print(blank->x);
+  lcd.print(blank->blue);
   lcd.print(")");
 
   lcd.setCursor(0, 1) ;
   lcd.print("Blank(");
-  lcd.print(blank->y);
+  lcd.print(blank->green);
   lcd.print(")");
-  
-  delay(1000);
+  delay(2000);
 }
 
 void recordBlank(MenuItem*){
@@ -220,39 +257,57 @@ void displayBlankSelected(MenuItem*){
 }
 
 void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
-  /*
-  File samplesFile;
-  if(!SD.exists("samples.csv")){
-    samplesFile = SD.open("samples.csv", FILE_WRITE);
-    samplesFile.println("Timestamp,Blank Blue, Blank Green, Sample Blue, Sample Green, Absorbance A1, Absorbance A2, R");
-  } else {
-    samplesFile = SD.open("samples.csv", FILE_WRITE);
-  }
-  */
+  SdFile samplesFile;
   
-  File samplesFile = SD.open("samples.csv", FILE_WRITE);
-  
-  tmElements_t tm;
-  if(RTC.read(tm)){
-    writeISO8601(&tm, &samplesFile);
+  if(samplesFile.open("SAMPLES.CSV", O_RDWR | O_CREAT | O_AT_END)){
+    FatPos_t pos;
+    samplesFile.getpos(&pos);
+    if(pos.position == 0){
+      samplesFile.print("Timestamp,");
+      samplesFile.print("Blank Blue,");
+      samplesFile.print("Blank Green,");
+      samplesFile.print("Sample Blue,");
+      samplesFile.print("Sample Green,");
+      samplesFile.print("Absorbance A1,");
+      samplesFile.print("Absorbance A2,");
+      samplesFile.println("R");
+    }
+    
+    tmElements_t tm;
+    if(RTC.read(tm)){
+      writeISO8601(&tm, &samplesFile);
+      samplesFile.print(",");
+    } else {
+      samplesFile.print("None,");
+    }
+    samplesFile.print(blank->blue);
     samplesFile.print(",");
+    samplesFile.print(blank->green);
+    
+    samplesFile.print(",");
+    samplesFile.print(sample->blue);
+    samplesFile.print(",");
+    samplesFile.print(sample->green);
+    samplesFile.print(",");
+    
+    char floatBuffer[16];
+    dtostrf(absReading->Abs1, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
+    samplesFile.print(",");
+    dtostrf(absReading->Abs2, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
+    samplesFile.print(",");
+    dtostrf(absReading->R, 8, 3, floatBuffer);
+    samplesFile.println(floatBuffer);
+    
+    samplesFile.close();
   } else {
-    samplesFile.print("None,");
+    lcd.clear();
+    lcd.print("Error writing");
+    lcd.setCursor(0, 1);
+    lcd.print("sample reading!");
+    sd.errorHalt("Opening samples.csv failed!");
   }
-  samplesFile.print(blank->x);
-  samplesFile.print(",");
-  samplesFile.print(blank->y);
-  samplesFile.print(",");
-  samplesFile.print(sample->x);
-  samplesFile.print(",");
-  samplesFile.print(sample->y);
-  samplesFile.print(",");
-  samplesFile.print(absReading->Abs1);
-  samplesFile.print(",");
-  samplesFile.print(absReading->Abs2);
-  samplesFile.print(",");
-  samplesFile.println(absReading->R);
-  samplesFile.close();
 }
 
 void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
@@ -261,7 +316,7 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.print("A1=");
   lcd.print(absReading->Abs1,3);
   lcd.print("(");
-  lcd.print(sample->x);
+  lcd.print(sample->blue);
   lcd.print(")");
 
   lcd.setCursor(0, 1) ;
@@ -269,10 +324,10 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.print("A2=");
   lcd.print(absReading->Abs2,3);
   lcd.print("(");
-  lcd.print(sample->y);
+  lcd.print(sample->green);
   lcd.print(")");
   
-  delay(1000);
+  delay(2000);
 }
 
 void recordSample(MenuItem*){
@@ -293,9 +348,11 @@ void recordSample(MenuItem*){
   writeSample(&blank, &sample, &absReading);
 }
 
+/*
 void displaySampleHistory(MenuItem*){
   
 }
+*/
 
 #define btnRIGHT  0
 #define btnUP     1
@@ -323,7 +380,7 @@ int read_LCD_buttons(){               // read the buttons
     return btnNONE;                // when all others fail, return this.
 }
 
-void displayMenu(){
+void displayMenu(){  
   lcd.clear();
   lcd.setCursor(0,0);
   
@@ -338,7 +395,6 @@ void displayMenu(){
 void loop(){
   int lcd_key = read_LCD_buttons();
   
-  
   switch (lcd_key){
     case btnSELECT:{
       ms.select();
@@ -346,12 +402,12 @@ void loop(){
       break;
     }
     case btnUP:{
-      ms.prev();
+      ms.prev(true);
       displayMenu();
       break;
     }
     case btnDOWN:{
-      ms.next();
+      ms.next(true);
       displayMenu();
       break;
     }
@@ -366,5 +422,5 @@ void loop(){
       break;
     }
   }
-  delay(140);
+  delay(150);
 }

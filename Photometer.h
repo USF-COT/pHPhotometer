@@ -15,8 +15,8 @@ typedef void (* PinControlFunPtr) (int);
 typedef int (* DetectorReadFunPtr) ();
 
 struct PHOTOREADING{
-  int x;
-  int y;
+  float blue;
+  float green;
 };
 
 struct ABSREADING{
@@ -27,15 +27,14 @@ struct ABSREADING{
 
 class Photometer{
   private:
-    PinControlFunPtr xLightControl, yLightControl;
+    PinControlFunPtr blueLightControl, greenLightControl;
     DetectorReadFunPtr detectorRead;
     
     PHOTOREADING blank, sample;
     ABSREADING absReading;
-    
   
   public:
-    Photometer(PinControlFunPtr xLightControl, PinControlFunPtr yLightControl, DetectorReadFunPtr detectorRead);
+    Photometer(PinControlFunPtr blueLightControl, PinControlFunPtr greenLightControl, DetectorReadFunPtr detectorRead);
     ~Photometer();
     
     void takeBlank();
