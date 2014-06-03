@@ -1,5 +1,6 @@
 #include <SdFat.h>
 #include <Wire.h>
+#include <OneWire.h>
 #include <DS1307RTC.h>
 #include <Time.h>
 #include <LiquidCrystal.h>   //use LCD library
@@ -7,6 +8,7 @@
 #include <MemoryFree.h>
 #include <stdlib.h>
 #include "Photometer.h"
+#include "ECTShield.h"
 #include "Adafruit_MCP23008.h"
 
 SdFat sd;
@@ -28,10 +30,30 @@ int readLightConverter(){
 }
 
 Photometer photometer(blueLEDControl, greenLEDControl, readLightConverter);
+
+void condControl(int setting){
+  mcp.digitalWrite(4, setting);
+}
+
+unsigned long condRead(int setting, unsigned int frequency){
+  return pulseIn(A2, HIGH, frequency);
+}
+
+ECTShield ect(condControl, condRead, 2);
+
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
-MenuSystem ms;
+typedef void (*displayHandler)(int);
+displayHandler currentDisplayHandler = mainMenuHandler;
 
+#define btnRIGHT  0
+#define btnUP     1
+#define btnDOWN   2
+#define btnLEFT   3
+#define btnSELECT 4
+#define btnNONE   5
+
+MenuSystem ms;
 Menu rootMenu("pH Photometer");
 
 Menu sampleMenu("Sample >");
@@ -42,40 +64,32 @@ Menu blankMenu("Blank >");
 MenuItem blankRecordItem("Record");
 MenuItem blankCurrentItem("Current Values");
 
-/*
-Menu settingsMenu("Settings >");
-MenuItem settingsTimeItem("Time");
-MenuItem settingsPhotoCal("Photometer Cal.");
-Menu settingsThermCalMenu("Thermometer Cal.");
-MenuItem settingsThermCalAddPoint("Add Point");
-MenuItem settingsThermCalEditPoints("Edit Points");
-MenuItem settingsThermCalViewParams("View Cal.");
-MenuItem settingsThermCalRecalculate("Recalculate");
-Menu settingsCondCalMenu("Conductivity Cal.");
-MenuItem settingsCondCalAddPoint("Add Point");
-MenuItem settingsCondCalEditPoints("Edit Points");
-MenuItem settingsCondCalViewParams("View Cal.");
-MenuItem settingsCondCalRecalculate("Recalculate");
-*/
 
-void printFreeMemory(){
-  Serial.print("freeMemory()=");
-  Serial.println(freeMemory());
-}
+Menu calibrationMenu("Calibration >");
+MenuItem calibrationEC("Read EC Raw");
 
-void calThermAddPointSelected(MenuItem*){
+void rawECHandler(int lcd_key){
+  float temperature = ect.getTemperature();
+  unsigned long frequency = ect.getConductivityFrequency();
   
-}
-
-void calThermEditPointsSelected(MenuItem*){
-}
-
-void calThermViewCalSelected(MenuItem*){
+  lcd.clear();
+  lcd.print("T: ");
+  lcd.print(temperature);
+  lcd.setCursor(0, 1);
   
+  lcd.print("C: ");
+  lcd.print(frequency);
+  
+  if(lcd_key != btnNONE){
+    currentDisplayHandler = mainMenuHandler;
+    displayMenu();
+  }
 }
 
-void calThermRecalculateSelected(MenuItem*){
-  
+void readECRaw(MenuItem*){
+  lcd.clear();
+  lcd.print("Reading ECT...");
+  currentDisplayHandler = rawECHandler;
 }
 
 void setupMenu(){
@@ -87,15 +101,8 @@ void setupMenu(){
   blankMenu.add_item(&blankRecordItem, &recordBlank);
   blankMenu.add_item(&blankCurrentItem, &displayBlankSelected);
   
-  /*
-  rootMenu.add_menu(&settingsMenu);
-  // Thermometer Calibration Sub-menu
-  settingsMenu.add_menu(&settingsThermCalMenu);
-  settingsThermCalMenu.add_item(&settingsThermCalAddPoint, &calThermAddPointSelected);
-  settingsThermCalMenu.add_item(&settingsThermCalEditPoints, &calThermEditPointsSelected);
-  settingsThermCalMenu.add_item(&settingsThermCalViewParams, &calThermViewCalSelected);
-  settingsThermCalMenu.add_item(&settingsThermCalRecalculate, &calThermRecalculateSelected);
-  */
+  rootMenu.add_menu(&calibrationMenu);
+  calibrationMenu.add_item(&calibrationEC, &readECRaw);
   
   ms.set_root_menu(&rootMenu);
     
@@ -166,11 +173,14 @@ boolean setupSDCard(){
   return true;
 }
 
+void setupECTShield(){
+  mcp.pinMode(4, OUTPUT);
+  pinMode(A2, INPUT);
+}
+
 void setup(){
   Serial.begin(9600);
   while(!Serial);  // Wait for serial
-  
-  printFreeMemory();
   
   lcd.begin(16, 2);  //Initialize LCD
   pinMode(10, OUTPUT);
@@ -185,6 +195,7 @@ void setup(){
   mcp.pinMode(7, OUTPUT);
   
   setupSDCard();
+  setupECTShield();
   
   setupMenu();
 }
@@ -348,42 +359,9 @@ void recordSample(MenuItem*){
   writeSample(&blank, &sample, &absReading);
 }
 
-/*
-void displaySampleHistory(MenuItem*){
-  
-}
-*/
-
-#define btnRIGHT  0
-#define btnUP     1
-#define btnDOWN   2
-#define btnLEFT   3
-#define btnSELECT 4
-#define btnNONE   5
-
-int read_LCD_buttons(){               // read the buttons
-    int adc_key_in = analogRead(0);       // read the value from the sensor 
-
-    // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
-    // we add approx 50 to those values and check to see if we are close
-    // We make this the 1st option for speed reasons since it will be the most likely result
-
-    if (adc_key_in > 1000) return btnNONE; 
-
-    // For V1.1 us this threshold
-    if (adc_key_in < 50)   return btnRIGHT;  
-    if (adc_key_in < 250)  return btnUP; 
-    if (adc_key_in < 450)  return btnDOWN; 
-    if (adc_key_in < 650)  return btnLEFT; 
-    if (adc_key_in < 850)  return btnSELECT;
-
-    return btnNONE;                // when all others fail, return this.
-}
-
 void displayMenu(){  
   lcd.clear();
   lcd.setCursor(0,0);
-  
   Menu const* cp_menu = ms.get_current_menu();
   lcd.print(cp_menu->get_name());
   
@@ -392,9 +370,7 @@ void displayMenu(){
   lcd.print(cp_menu->get_selected()->get_name());
 }
 
-void loop(){
-  int lcd_key = read_LCD_buttons();
-  
+void mainMenuHandler(int lcd_key){
   switch (lcd_key){
     case btnSELECT:{
       ms.select();
@@ -422,5 +398,31 @@ void loop(){
       break;
     }
   }
+}
+
+int read_LCD_buttons(){               // read the buttons
+    int adc_key_in = analogRead(0);       // read the value from the sensor 
+
+    // my buttons when read are centered at these valies: 0, 144, 329, 504, 741
+    // we add approx 50 to those values and check to see if we are close
+    // We make this the 1st option for speed reasons since it will be the most likely result
+
+    if (adc_key_in > 1000) return btnNONE; 
+
+    // For V1.1 us this threshold
+    if (adc_key_in < 50)   return btnRIGHT;  
+    if (adc_key_in < 250)  return btnUP; 
+    if (adc_key_in < 450)  return btnDOWN; 
+    if (adc_key_in < 650)  return btnLEFT; 
+    if (adc_key_in < 850)  return btnSELECT;
+
+    return btnNONE;                // when all others fail, return this.
+}
+
+void loop(){
+  int lcd_key = read_LCD_buttons();
+  
+  currentDisplayHandler(lcd_key);
+  
   delay(150);
 }

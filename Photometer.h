@@ -40,6 +40,8 @@ class Photometer{
     void takeBlank();
     void takeSample();
     
+    void setBlank(PHOTOREADING* src);
+    
     void getBlank(PHOTOREADING* dest);
     void getSample(PHOTOREADING* dest);
     void getAbsorbance(ABSREADING* dest);
