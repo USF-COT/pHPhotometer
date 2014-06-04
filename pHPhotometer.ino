@@ -73,11 +73,11 @@ void rawECHandler(int lcd_key){
   unsigned long frequency = ect.getConductivityFrequency();
   
   lcd.clear();
-  lcd.print("T: ");
+  lcd.print(" T: ");
   lcd.print(temperature);
   lcd.setCursor(0, 1);
   
-  lcd.print("C: ");
+  lcd.print("Cf: ");
   lcd.print(frequency);
   
   if(lcd_key != btnNONE){
