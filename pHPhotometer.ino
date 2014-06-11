@@ -15,6 +15,10 @@ SdFat sd;
 
 Adafruit_MCP23008 mcp;
 
+const byte blueLEDPin = 0;
+const byte greenLEDPin = 7;
+const byte detectorPin = 1;
+
 void blueLEDControl(int level){
   mcp.digitalWrite(0, level);
 }
@@ -75,15 +79,6 @@ void rawECHandler(int lcd_key){
   
   lcd.print("Cf: ");
   lcd.print(frequency);
-
-  // Print calibrated conductivity
-  /*
-  float cond = condCal.adjustReading((float)frequency);
-  char floatBuffer[16];
-  dtostrf(cond, 8, 3, floatBuffer);
-  lcd.print(" C: ");
-  lcd.print(floatBuffer);
-  */
   
   if(lcd_key != btnNONE){
     currentDisplayHandler = mainMenuHandler;
