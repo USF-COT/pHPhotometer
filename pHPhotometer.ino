@@ -7,8 +7,10 @@
 #include <MenuSystem.h>
 #include <MemoryFree.h>
 #include <stdlib.h>
+#include <math.h>
 #include "Photometer.h"
 #include "ECTShield.h"
+#include "Calibration.h"
 #include "Adafruit_MCP23008.h"
 
 SdFat sd;
@@ -36,15 +38,15 @@ void condControl(int setting){
 }
 
 unsigned long condRead(int setting, unsigned int frequency){
-  return pulseIn(A2, HIGH, frequency);
+  return pulseIn(A2, setting, frequency);
 }
 
 ECTShield ect(condControl, condRead, 2);
 
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
+  LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
 typedef void (*displayHandler)(int);
-displayHandler currentDisplayHandler = mainMenuHandler;
+volatile displayHandler currentDisplayHandler = mainMenuHandler;
 
 #define btnRIGHT  0
 #define btnUP     1
@@ -301,7 +303,7 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
     samplesFile.print(sample->green);
     samplesFile.print(",");
     
-    char floatBuffer[16];
+    char floatBuffer[32];
     dtostrf(absReading->Abs1, 8, 3, floatBuffer);
     samplesFile.print(floatBuffer);
     samplesFile.print(",");

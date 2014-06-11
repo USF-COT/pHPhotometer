@@ -1,6 +1,6 @@
+#include "Arduino.h"
 #include "Calibration.h"
 #include <math.h>
-#include <SdFat.h>
 
 Calibration::Calibration(){
 }
@@ -40,7 +40,7 @@ boolean Calibration::load(){
 float Calibration::adjustReading(float reading){
   float calibratedValue = 0;
   for(byte i=0; i <= this->order; ++i){
-    calibratedValue += this->parameters[i] * pow(reading, this->order-i);
+    calibratedValue += this->parameters[i] * pow(reading, (float)this->order-i);
   }
   return calibratedValue;
 }

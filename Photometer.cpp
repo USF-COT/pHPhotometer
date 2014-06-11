@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #include "Photometer.h"
 
 Photometer::Photometer(PinControlFunPtr blueLightControl, PinControlFunPtr greenLightControl, DetectorReadFunPtr detectorRead){

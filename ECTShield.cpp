@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #include "ECTShield.h"
 
 ECTShield::ECTShield(ECProbeControlFun probeControl, ECProbeReadFun readProbe, byte oneWirePin):ds(oneWirePin){
