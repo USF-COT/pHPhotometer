@@ -32,7 +32,7 @@ void condControl(int setting){
 }
 
 unsigned long condRead(int setting, unsigned int frequency){
-  return pulseIn(A2, setting, frequency);
+  return pulseIn(A2, HIGH, frequency);
 }
 
 ECTShield ect(condControl, condRead, 2);
