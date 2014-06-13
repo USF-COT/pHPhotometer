@@ -5,12 +5,8 @@
 #include <Time.h>
 #include <LiquidCrystal.h>   //use LCD library
 #include <MenuSystem.h>
-#include <MemoryFree.h>
-#include <stdlib.h>
-#include <math.h>
 #include "Photometer.h"
 #include "ECTShield.h"
-#include "Calibration.h"
 #include "Adafruit_MCP23008.h"
 
 SdFat sd;
@@ -21,6 +17,7 @@ const byte blueLEDPin = 0;
 const byte greenLEDPin = 7;
 const byte detectorPin = 1;
 
+// Photometer Setup
 void blueLEDControl(int level){
   mcp.digitalWrite(0, level);
 }
@@ -30,23 +27,23 @@ void greenLEDControl(int level){
 int readLightConverter(){
   return analogRead(1);
 }
-
 Photometer photometer(blueLEDControl, greenLEDControl, readLightConverter);
 
+// ECT Shield Setup
 void condControl(int setting){
   mcp.digitalWrite(4, setting);
 }
-
 unsigned long condRead(int setting, unsigned int frequency){
   return pulseIn(A2, setting, frequency);
 }
-
 ECTShield ect(condControl, condRead, 2);
 
-  LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
+// Liquid Crystal Setup
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
 
+// Menu Handler Setup
 typedef void (*displayHandler)(int);
-volatile displayHandler currentDisplayHandler = mainMenuHandler;
+displayHandler currentDisplayHandler = mainMenuHandler;
 
 #define btnRIGHT  0
 #define btnUP     1
@@ -66,34 +63,10 @@ Menu blankMenu("Blank >");
 MenuItem blankRecordItem("Record");
 MenuItem blankCurrentItem("Current Values");
 
-
 Menu calibrationMenu("Calibration >");
 MenuItem calibrationEC("Read EC Raw");
 
-void rawECHandler(int lcd_key){
-  float temperature = ect.getTemperature();
-  unsigned long frequency = ect.getConductivityFrequency();
-  
-  lcd.clear();
-  lcd.print(" T: ");
-  lcd.print(temperature);
-  lcd.setCursor(0, 1);
-  
-  lcd.print("Cf: ");
-  lcd.print(frequency);
-  
-  if(lcd_key != btnNONE){
-    currentDisplayHandler = mainMenuHandler;
-    displayMenu();
-  }
-}
-
-void readECRaw(MenuItem*){
-  lcd.clear();
-  lcd.print("Reading ECT...");
-  currentDisplayHandler = rawECHandler;
-}
-
+// Setup Functions
 void setupMenu(){
   rootMenu.add_menu(&sampleMenu);
   sampleMenu.add_item(&sampleRecordItem, &recordSample);
@@ -111,34 +84,26 @@ void setupMenu(){
   displayMenu();
 }
 
-void dateTime(uint16_t* date, uint16_t* time){
-  tmElements_t tm;
-  if(RTC.read(tm)){
-    *date = FAT_DATE(tmYearToCalendar(tm.Year), tm.Month, tm.Day);
-    *time = FAT_TIME(tm.Hour, tm.Minute, tm.Second);
-  }
-}
-
-void print2digits(int number, Print* printer){
+void print2digits(int number, Print& printer){
   if (number >=0 && number < 10){
-    printer->write('0');
+    printer.write('0');
   }
-  printer->print(number);
+  printer.print(number);
 }
 
-void writeISO8601(tmElements_t* tm, Print* printer){
-  printer->print(tmYearToCalendar(tm->Year));
-  printer->print("-");
+void writeISO8601(tmElements_t* tm, Print& printer){
+  printer.print(tmYearToCalendar(tm->Year));
+  printer.print("-");
   print2digits(tm->Month, printer);
-  printer->print("-");
+  printer.print("-");
   print2digits(tm->Day, printer);
-  printer->print("T");
+  printer.print("T");
   print2digits(tm->Hour, printer);
-  printer->print(":");
+  printer.print(":");
   print2digits(tm->Minute, printer);
-  printer->print(":");
+  printer.print(":");
   print2digits(tm->Second, printer);
-  printer->print("Z");
+  printer.print("Z");
 }
 
 void writeLog(char* message){
@@ -147,7 +112,7 @@ void writeLog(char* message){
   if(logFile.open("LOG.TXT", O_RDWR | O_CREAT | O_AT_END)){
     tmElements_t tm;
     if(RTC.read(tm)){
-      writeISO8601(&tm, &logFile);
+      writeISO8601(&tm, logFile);
       logFile.print(",");
     } else {
       logFile.print("None,");
@@ -162,8 +127,15 @@ void writeLog(char* message){
   }
 }
 
+void fileDateTime(uint16_t* date, uint16_t* time){
+  tmElements_t tm;
+  if(RTC.read(tm)){
+    *date = FAT_DATE(tmYearToCalendar(tm.Year), tm.Month, tm.Day);
+    *time = FAT_TIME(tm.Hour, tm.Minute, tm.Second);
+  }
+}
 boolean setupSDCard(){
-  SdFile::dateTimeCallback(dateTime);
+  SdFile::dateTimeCallback(fileDateTime);
   if(!sd.begin(A3, SPI_FULL_SPEED)){
     lcd.print("Card Error:");
     lcd.setCursor(0,1);
@@ -185,8 +157,6 @@ void setup(){
   while(!Serial);  // Wait for serial
   
   lcd.begin(16, 2);  //Initialize LCD
-  pinMode(10, OUTPUT);
-  digitalWrite(10, HIGH);
 
   lcd.print("MiniSpec B.Y.");  //Display Mini Spectrophotometer
   delay(1000); //Delay1000ms
@@ -196,6 +166,8 @@ void setup(){
   mcp.pinMode(0, OUTPUT);
   mcp.pinMode(7, OUTPUT);
   
+  // Initialize hardware SS pin, drive high for lcd backlight
+  pinMode(10, OUTPUT);
   setupSDCard();
   setupECTShield();
   
@@ -205,9 +177,14 @@ void setup(){
 void writeBlank(PHOTOREADING* blank){
   SdFile blankFile;
   
-  if(blankFile.open("BLANK.CSV", O_RDWR | O_CREAT | O_AT_END)){
+  if(blankFile.open("blank.csv", O_RDWR | O_CREAT | O_AT_END)){
     FatPos_t pos;
     blankFile.getpos(&pos);
+    Serial.print(pos.position);
+    Serial.print(",");
+    Serial.println(blank->blue);
+    blankFile.println("hello");
+    /*
     if(pos.position == 0){
       blankFile.print("Timestamp,");
       blankFile.print("Blank Blue,");
@@ -216,14 +193,18 @@ void writeBlank(PHOTOREADING* blank){
     
     tmElements_t tm;
     if(RTC.read(tm)){
-      writeISO8601(&tm, &blankFile);
+      writeISO8601(&tm, blankFile);
       blankFile.print(",");
     } else {
       blankFile.print("None,");
     }
-    blankFile.print(blank->blue);
+    char floatBuffer[20];
+    dtostrf(blank->blue, 8, 3, floatBuffer);
+    blankFile.print(floatBuffer);
     blankFile.print(",");
-    blankFile.println(blank->green);
+    dtostrf(blank->green, 8, 3, floatBuffer);
+    blankFile.println(floatBuffer);
+    */
     blankFile.close();
   } else {
     lcd.clear();
@@ -272,7 +253,7 @@ void displayBlankSelected(MenuItem*){
 void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
   SdFile samplesFile;
   
-  if(samplesFile.open("SAMPLES.CSV", O_RDWR | O_CREAT | O_AT_END)){
+  if(samplesFile.open("samples.csv", O_RDWR | O_CREAT | O_AT_END)){
     FatPos_t pos;
     samplesFile.getpos(&pos);
     if(pos.position == 0){
@@ -288,22 +269,27 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
     
     tmElements_t tm;
     if(RTC.read(tm)){
-      writeISO8601(&tm, &samplesFile);
+      writeISO8601(&tm, samplesFile);
       samplesFile.print(",");
     } else {
       samplesFile.print("None,");
     }
-    samplesFile.print(blank->blue);
+    
+    char floatBuffer[16];
+    dtostrf(blank->blue, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
     samplesFile.print(",");
-    samplesFile.print(blank->green);
+    dtostrf(blank->green, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
     
     samplesFile.print(",");
-    samplesFile.print(sample->blue);
+    dtostrf(sample->blue, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
     samplesFile.print(",");
-    samplesFile.print(sample->green);
+    dtostrf(sample->green, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
     samplesFile.print(",");
     
-    char floatBuffer[32];
     dtostrf(absReading->Abs1, 8, 3, floatBuffer);
     samplesFile.print(floatBuffer);
     samplesFile.print(",");
@@ -359,6 +345,31 @@ void recordSample(MenuItem*){
   
   displaySample(&blank, &sample, &absReading);
   writeSample(&blank, &sample, &absReading);
+}
+
+// ECT Shield Display Handler
+void rawECHandler(int lcd_key){
+  float temperature = ect.getTemperature();
+  unsigned long frequency = ect.getConductivityFrequency();
+  
+  lcd.clear();
+  lcd.print(" T: ");
+  lcd.print(temperature);
+  lcd.setCursor(0, 1);
+  
+  lcd.print("Cf: ");
+  lcd.print(frequency);
+  
+  if(lcd_key != btnNONE){
+    currentDisplayHandler = mainMenuHandler;
+    displayMenu();
+  }
+}
+
+void readECRaw(MenuItem*){
+  lcd.clear();
+  lcd.print("Reading ECT...");
+  currentDisplayHandler = rawECHandler;
 }
 
 void displayMenu(){  

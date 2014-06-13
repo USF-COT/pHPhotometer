@@ -1,7 +1,7 @@
 #ifndef ECTSHIELD_H
 #define ECTSHIELD_H
 
-#include "Arduino.h"
+#include <Arduino.h>
 #include <Wire.h>
 #include <OneWire.h>
 

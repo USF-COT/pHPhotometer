@@ -9,7 +9,7 @@
 #ifndef PHOTOMETER_H
 #define PHOTOMETER_H
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 typedef void (* PinControlFunPtr) (int);
 typedef int (* DetectorReadFunPtr) ();
