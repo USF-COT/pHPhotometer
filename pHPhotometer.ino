@@ -1,13 +1,14 @@
-#include <SdFat.h>
 #include <Wire.h>
 #include <OneWire.h>
 #include <DS1307RTC.h>
 #include <Time.h>
 #include <LiquidCrystal.h>   //use LCD library
 #include <MenuSystem.h>
+#include <SdFat.h>
 #include "Photometer.h"
 #include "ECTShield.h"
 #include "Adafruit_MCP23008.h"
+#include "Calibration.h"
 
 SdFat sd;
 
@@ -37,6 +38,7 @@ unsigned long condRead(int setting, unsigned int frequency){
   return pulseIn(A2, setting, frequency);
 }
 ECTShield ect(condControl, condRead, 2);
+Calibration condCal("cond");
 
 // Liquid Crystal Setup
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);// LCD pin
@@ -57,7 +59,7 @@ Menu rootMenu("pH Photometer");
 
 Menu sampleMenu("Sample >");
 MenuItem sampleRecordItem("Record");
-MenuItem sampleHistoryItem("History");
+//MenuItem sampleHistoryItem("History");
 
 Menu blankMenu("Blank >");
 MenuItem blankRecordItem("Record");
@@ -136,6 +138,7 @@ void fileDateTime(uint16_t* date, uint16_t* time){
 }
 boolean setupSDCard(){
   SdFile::dateTimeCallback(fileDateTime);
+  pinMode(A3, OUTPUT);
   if(!sd.begin(A3, SPI_FULL_SPEED)){
     lcd.print("Card Error:");
     lcd.setCursor(0,1);
@@ -168,28 +171,27 @@ void setup(){
   
   // Initialize hardware SS pin, drive high for lcd backlight
   pinMode(10, OUTPUT);
+  digitalWrite(10, HIGH);
   setupSDCard();
   setupECTShield();
+  condCal.load();
   
   setupMenu();
 }
 
+#define BLANKFILEPATH "blank.csv"
 void writeBlank(PHOTOREADING* blank){
   SdFile blankFile;
+  //boolean existed = sd.exists(BLANKFILEPATH);
   
-  if(blankFile.open("blank.csv", O_RDWR | O_CREAT | O_AT_END)){
-    FatPos_t pos;
-    blankFile.getpos(&pos);
-    Serial.print(pos.position);
-    Serial.print(",");
-    Serial.println(blank->blue);
-    blankFile.println("hello");
+  if(blankFile.open(BLANKFILEPATH, O_RDWR | O_CREAT | O_AT_END)){
     /*
-    if(pos.position == 0){
+    if(!existed){
       blankFile.print("Timestamp,");
       blankFile.print("Blank Blue,");
       blankFile.println("Blank Green");
     }
+    */
     
     tmElements_t tm;
     if(RTC.read(tm)){
@@ -204,7 +206,6 @@ void writeBlank(PHOTOREADING* blank){
     blankFile.print(",");
     dtostrf(blank->green, 8, 3, floatBuffer);
     blankFile.println(floatBuffer);
-    */
     blankFile.close();
   } else {
     lcd.clear();
@@ -235,28 +236,51 @@ void recordBlank(MenuItem*){
   lcd.setCursor(0, 1);
   lcd.print("Blank...");
   
+  Serial.println("Taking blank");
   photometer.takeBlank();
   
   PHOTOREADING blank;
-  photometer.getBlank(&blank);
+  Serial.println("Getting blank");
+  photometer.getBlank(&blank, NULL);
+  Serial.println("Displaying blank");
   displayBlank(&blank);
   writeBlank(&blank);
 }
 
+/*
+void blankSampleHandler(int lcd_key){
+  photometer.takeBlank();
+  
+  PHOTOREADING blank;
+  photometer.getBlank(&blank, NULL);
+  displayBlank(&blank);
+  
+  lcd.clear();
+  lcd.print("B: ");
+  lcd.print(blank.blue);
+  lcd.setCursor(0,1);
+  lcd.print("G: ");
+  lcd.print(blank.green);
+  
+  delay(500);
+}
+*/
+
 void displayBlankSelected(MenuItem*){
   PHOTOREADING blank;
-  photometer.getBlank(&blank);
+  photometer.getBlank(&blank, NULL);
   
   displayBlank(&blank);
 }
 
+#define SAMPLEFILEPATH "samples.csv"
 void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
   SdFile samplesFile;
+  //boolean existed = sd.exists(SAMPLEFILEPATH);
   
-  if(samplesFile.open("samples.csv", O_RDWR | O_CREAT | O_AT_END)){
-    FatPos_t pos;
-    samplesFile.getpos(&pos);
-    if(pos.position == 0){
+  if(samplesFile.open(SAMPLEFILEPATH, O_RDWR | O_CREAT | O_AT_END)){
+    /*
+    if(!existed){
       samplesFile.print("Timestamp,");
       samplesFile.print("Blank Blue,");
       samplesFile.print("Blank Green,");
@@ -266,6 +290,7 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
       samplesFile.print("Absorbance A2,");
       samplesFile.println("R");
     }
+    */
     
     tmElements_t tm;
     if(RTC.read(tm)){
@@ -275,7 +300,7 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
       samplesFile.print("None,");
     }
     
-    char floatBuffer[16];
+    char floatBuffer[20];
     dtostrf(blank->blue, 8, 3, floatBuffer);
     samplesFile.print(floatBuffer);
     samplesFile.print(",");
@@ -339,9 +364,9 @@ void recordSample(MenuItem*){
   
   PHOTOREADING blank, sample;
   ABSREADING absReading;
-  photometer.getBlank(&blank);
-  photometer.getSample(&sample);
-  photometer.getAbsorbance(&absReading);
+  photometer.getBlank(&blank, NULL);
+  photometer.getSample(&sample, NULL);
+  photometer.getAbsorbance(&absReading, NULL);
   
   displaySample(&blank, &sample, &absReading);
   writeSample(&blank, &sample, &absReading);
@@ -353,13 +378,15 @@ void rawECHandler(int lcd_key){
   unsigned long frequency = ect.getConductivityFrequency();
   
   lcd.clear();
-  lcd.print(" T: ");
+  lcd.print("T: ");
   lcd.print(temperature);
   lcd.setCursor(0, 1);
   
-  lcd.print("Cf: ");
-  lcd.print(frequency);
-  
+  lcd.print("C: ");
+  char floatBuffer[16];
+  dtostrf(condCal.adjustReading(frequency), 8, 3, floatBuffer);
+  lcd.print(floatBuffer);
+    
   if(lcd_key != btnNONE){
     currentDisplayHandler = mainMenuHandler;
     displayMenu();

@@ -5,12 +5,12 @@
 
 class Calibration{
   private:
-    String name;
+    char name[5];
     
-    byte order;
+    int order;
     float parameters[4];  // 3rd order calibration limit
   public:
-    Calibration();
+    Calibration(char* name);
     ~Calibration();
     boolean load();
     float adjustReading(float value);

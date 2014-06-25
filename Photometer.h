@@ -30,8 +30,8 @@ class Photometer{
     PinControlFunPtr blueLightControl, greenLightControl;
     DetectorReadFunPtr detectorRead;
     
-    PHOTOREADING blank, sample;
-    ABSREADING absReading;
+    PHOTOREADING prevBlank, blank, prevSample, sample;
+    ABSREADING prevAbsReading, absReading;
   
   public:
     Photometer(PinControlFunPtr blueLightControl, PinControlFunPtr greenLightControl, DetectorReadFunPtr detectorRead);
@@ -42,9 +42,9 @@ class Photometer{
     
     void setBlank(PHOTOREADING* src);
     
-    void getBlank(PHOTOREADING* dest);
-    void getSample(PHOTOREADING* dest);
-    void getAbsorbance(ABSREADING* dest);
+    void getBlank(PHOTOREADING* dest, PHOTOREADING* prev);
+    void getSample(PHOTOREADING* dest, PHOTOREADING* prev);
+    void getAbsorbance(ABSREADING* dest, ABSREADING* prev);
 };
     
 #endif
