@@ -14,8 +14,8 @@ SdFat sd;
 
 Adafruit_MCP23008 mcp;
 
-const byte blueLEDPin = 0;
-const byte greenLEDPin = 7;
+const byte blueLEDPin = 7;
+const byte greenLEDPin = 0;
 const byte detectorPin = 1;
 
 // Photometer Setup
@@ -122,9 +122,6 @@ void writeLog(char* message){
     logFile.println(message);
     logFile.close();
   } else {
-    lcd.print("Error writing");
-    lcd.setCursor(0, 1);
-    lcd.print("log file!");
     sd.errorHalt("Opening log.txt failed");
   }
 }
@@ -167,15 +164,17 @@ void setup(){
   
   // Initialize blue and green outputs
   mcp.pinMode(0, OUTPUT);
+  mcp.digitalWrite(0, LOW);
   mcp.pinMode(7, OUTPUT);
+  mcp.digitalWrite(0, LOW);
   
   // Initialize hardware SS pin, drive high for lcd backlight
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);
+  
   setupSDCard();
   setupECTShield();
   condCal.load();
-  
   setupMenu();
 }
 
@@ -200,7 +199,7 @@ void writeBlank(PHOTOREADING* blank){
     } else {
       blankFile.print("None,");
     }
-    char floatBuffer[20];
+    char floatBuffer[24];
     dtostrf(blank->blue, 8, 3, floatBuffer);
     blankFile.print(floatBuffer);
     blankFile.print(",");
@@ -209,9 +208,6 @@ void writeBlank(PHOTOREADING* blank){
     blankFile.close();
   } else {
     lcd.clear();
-    lcd.print("Error writing");
-    lcd.setCursor(0, 1);
-    lcd.print("blank reading!");
     sd.errorHalt("Opening blank.csv failed!");
   }
 }
@@ -236,13 +232,10 @@ void recordBlank(MenuItem*){
   lcd.setCursor(0, 1);
   lcd.print("Blank...");
   
-  Serial.println("Taking blank");
   photometer.takeBlank();
   
   PHOTOREADING blank;
-  Serial.println("Getting blank");
-  photometer.getBlank(&blank, NULL);
-  Serial.println("Displaying blank");
+  photometer.getBlank(&blank);
   displayBlank(&blank);
   writeBlank(&blank);
 }
@@ -268,7 +261,7 @@ void blankSampleHandler(int lcd_key){
 
 void displayBlankSelected(MenuItem*){
   PHOTOREADING blank;
-  photometer.getBlank(&blank, NULL);
+  photometer.getBlank(&blank);
   
   displayBlank(&blank);
 }
@@ -300,7 +293,7 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
       samplesFile.print("None,");
     }
     
-    char floatBuffer[20];
+    char floatBuffer[24];
     dtostrf(blank->blue, 8, 3, floatBuffer);
     samplesFile.print(floatBuffer);
     samplesFile.print(",");
@@ -326,10 +319,6 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
     
     samplesFile.close();
   } else {
-    lcd.clear();
-    lcd.print("Error writing");
-    lcd.setCursor(0, 1);
-    lcd.print("sample reading!");
     sd.errorHalt("Opening samples.csv failed!");
   }
 }
@@ -364,9 +353,9 @@ void recordSample(MenuItem*){
   
   PHOTOREADING blank, sample;
   ABSREADING absReading;
-  photometer.getBlank(&blank, NULL);
-  photometer.getSample(&sample, NULL);
-  photometer.getAbsorbance(&absReading, NULL);
+  photometer.getBlank(&blank);
+  photometer.getSample(&sample);
+  photometer.getAbsorbance(&absReading);
   
   displaySample(&blank, &sample, &absReading);
   writeSample(&blank, &sample, &absReading);
@@ -382,10 +371,11 @@ void rawECHandler(int lcd_key){
   lcd.print(temperature);
   lcd.setCursor(0, 1);
   
-  lcd.print("C: ");
-  char floatBuffer[16];
-  dtostrf(condCal.adjustReading(frequency), 8, 3, floatBuffer);
-  lcd.print(floatBuffer);
+  lcd.print("Cf: ");
+  //char floatBuffer[24];
+  //dtostrf(condCal.adjustReading(frequency), 8, 3, floatBuffer);
+  //dtostrf(frequency, 8, 3, floatBuffer);
+  lcd.print(frequency);
     
   if(lcd_key != btnNONE){
     currentDisplayHandler = mainMenuHandler;

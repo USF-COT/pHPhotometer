@@ -20,19 +20,16 @@ boolean Calibration::load(){
   char buffer[LINE_SIZE];
   ifstream sdin(filename);
   if(!sdin.is_open()){
-    Serial.println("Unable to open calibration file");
     this->order = 0;
     return false;
   }
   
   char comma;
   sdin >> this->order;
-  Serial.print("Order: ");
   Serial.println(this->order);
   for(int i=0; i <= this->order; ++i){
     sdin >> comma;
     sdin >> this->parameters[i];
-    Serial.print("Param: ");
     Serial.println(this->parameters[i]);
   }
   

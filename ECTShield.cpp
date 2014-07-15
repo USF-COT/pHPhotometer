@@ -15,19 +15,17 @@ float ECTShield::getTemperature(){
 
   if ( !this->ds.search(addr)) {
       //no more sensors on chain, reset search
-      Serial.println("No more sensors on chain, search reset.");
       this->ds.reset_search();
       return -1000;
   }
 
   if ( OneWire::crc8( addr, 7) != addr[7]) {
       Serial.println("CRC is not valid!");
-      return -1000;
+      return -2000;
   }
 
   if ( addr[0] != 0x10 && addr[0] != 0x28) {
-      Serial.print("Device is not recognized");
-      return -1000;
+      return -3000;
   }
 
   this->ds.reset();
@@ -59,7 +57,7 @@ float ECTShield::getConductivity(){
 }
 
 unsigned long ECTShield::getConductivityFrequency(){
-  const unsigned int SAMPLES = 128;
+  const unsigned int SAMPLES = 256;
   probeControl(HIGH);
   unsigned long freqHigh = 0;
   unsigned long freqLow = 0;
