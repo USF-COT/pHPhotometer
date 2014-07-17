@@ -22,7 +22,7 @@ void greenLEDControl(int level){
   mcp.digitalWrite(0, level);
 }
 int readLightConverter(){
-  return analogRead(1);
+  return analogRead(A1);
 }
 Photometer photometer(blueLEDControl, greenLEDControl, readLightConverter);
 
@@ -168,6 +168,9 @@ void setup(){
   // Initialize hardware SS pin, drive high for lcd backlight
   pinMode(10, OUTPUT);
   digitalWrite(10, HIGH);
+  
+  // Setup Photometer Read Pin
+  pinMode(A1, INPUT);
   
   setupSDCard();
   setupECTShield();
