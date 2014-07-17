@@ -14,16 +14,12 @@ SdFat sd;
 
 Adafruit_MCP23008 mcp;
 
-const byte blueLEDPin = 7;
-const byte greenLEDPin = 0;
-const byte detectorPin = 1;
-
 // Photometer Setup
 void blueLEDControl(int level){
-  mcp.digitalWrite(0, level);
+  mcp.digitalWrite(7, level);
 }
 void greenLEDControl(int level){
-  mcp.digitalWrite(7, level);
+  mcp.digitalWrite(0, level);
 }
 int readLightConverter(){
   return analogRead(1);
@@ -70,13 +66,13 @@ MenuItem calibrationEC("Read EC Raw");
 
 // Setup Functions
 void setupMenu(){
-  rootMenu.add_menu(&sampleMenu);
-  sampleMenu.add_item(&sampleRecordItem, &recordSample);
-  //sampleMenu.add_item(&sampleHistoryItem, &displaySampleHistory);
-  
   rootMenu.add_menu(&blankMenu);
   blankMenu.add_item(&blankRecordItem, &recordBlank);
   blankMenu.add_item(&blankCurrentItem, &displayBlankSelected);
+  
+  rootMenu.add_menu(&sampleMenu);
+  sampleMenu.add_item(&sampleRecordItem, &recordSample);
+  //sampleMenu.add_item(&sampleHistoryItem, &displaySampleHistory);
   
   rootMenu.add_menu(&calibrationMenu);
   calibrationMenu.add_item(&calibrationEC, &readECRaw);
@@ -149,6 +145,7 @@ boolean setupSDCard(){
 
 void setupECTShield(){
   mcp.pinMode(4, OUTPUT);
+  mcp.digitalWrite(4, LOW);
   pinMode(A2, INPUT);
 }
 
@@ -315,6 +312,18 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
     samplesFile.print(floatBuffer);
     samplesFile.print(",");
     dtostrf(absReading->R, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
+    samplesFile.print(",");
+    
+    float temperature = ect.getTemperature();
+    unsigned long frequency = ect.getConductivityFrequency();
+    
+    dtostrf(temperature, 8, 3, floatBuffer);
+    samplesFile.print(floatBuffer);
+    samplesFile.print(",");
+    samplesFile.print(frequency);
+    samplesFile.print(",");
+    dtostrf(condCal.adjustReading(frequency), 8, 3, floatBuffer);
     samplesFile.println(floatBuffer);
     
     samplesFile.close();
