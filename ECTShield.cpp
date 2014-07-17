@@ -57,13 +57,13 @@ float ECTShield::getConductivity(){
 }
 
 unsigned long ECTShield::getConductivityFrequency(){
-  const unsigned int SAMPLES = 256;
+  const unsigned long SAMPLES = 4096;
   probeControl(HIGH);
   unsigned long freqHigh = 0;
   unsigned long freqLow = 0;
   unsigned long freq = 0;
   
-  for(unsigned int i=0; i < SAMPLES; ++i){
+  for(unsigned long i=0; i < SAMPLES; ++i){
     freqHigh += readProbe(HIGH, 250000);
     freqLow += readProbe(LOW, 250000);
   }
