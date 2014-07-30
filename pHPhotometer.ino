@@ -63,6 +63,7 @@ MenuItem blankCurrentItem("Current Values");
 
 Menu calibrationMenu("Calibration >");
 MenuItem calibrationEC("Read EC Raw");
+MenuItem readEC("Read EC Cal");
 
 // Setup Functions
 void setupMenu(){
@@ -76,6 +77,7 @@ void setupMenu(){
   
   rootMenu.add_menu(&calibrationMenu);
   calibrationMenu.add_item(&calibrationEC, &readECRaw);
+  calibrationMenu.add_item(&readEC, &readECCal);
   
   ms.set_root_menu(&rootMenu);
     
@@ -373,14 +375,18 @@ void recordSample(MenuItem*){
   writeSample(&blank, &sample, &absReading);
 }
 
-// ECT Shield Display Handler
-void rawECHandler(int lcd_key){
+void displayTemperature(){
   float temperature = ect.getTemperature();
-  unsigned long frequency = ect.getConductivityFrequency();
   
-  lcd.clear();
   lcd.print("T: ");
   lcd.print(temperature);
+}
+
+// ECT Shield Display Handler
+void rawECHandler(int lcd_key){
+  unsigned long frequency = ect.getConductivityFrequency();
+  lcd.clear();
+  displayTemperature();
   lcd.setCursor(0, 1);
   
   lcd.print("Cf: ");
@@ -395,10 +401,33 @@ void rawECHandler(int lcd_key){
   }
 }
 
+void calECHandler(int lcd_key){
+  unsigned long frequency = ect.getConductivityFrequency();
+  lcd.clear();
+  displayTemperature();
+  lcd.setCursor(0,1);
+  
+  lcd.print("C: ");
+  char floatBuffer[24];
+  dtostrf(condCal.adjustReading(frequency), 8, 3, floatBuffer);
+  lcd.print(floatBuffer);
+  
+  if(lcd_key != btnNONE){
+    currentDisplayHandler = mainMenuHandler;
+    displayMenu();
+  }
+}
+
 void readECRaw(MenuItem*){
+  currentDisplayHandler = rawECHandler;
   lcd.clear();
   lcd.print("Reading ECT...");
-  currentDisplayHandler = rawECHandler;
+}
+
+void readECCal(MenuItem*){
+  currentDisplayHandler = calECHandler;
+  lcd.clear();
+  lcd.print("Reading ECT...");
 }
 
 void displayMenu(){  
