@@ -42,10 +42,20 @@ void Photometer::takeSample(){
   this->absReading.Abs2 = log((float)this->blank.green/(float)this->sample.green)/(log(10));//calculate the absorbance
   this->absReading.R=(float)this->absReading.Abs2/(float)this->absReading.Abs1;
 }
-    
+
+void Photometer::resetBlank(){
+  this->blank.blue = 0;
+  this->blank.green = 0;
+}
+
 void Photometer::getBlank(PHOTOREADING* dest){
   dest->blue = this->blank.blue;
   dest->green = this->blank.green;
+}
+
+void Photometer::resetSample(){
+  this->sample.blue = 0;
+  this->sample.green = 0;
 }
 
 void Photometer::getSample(PHOTOREADING* dest){

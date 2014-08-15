@@ -214,58 +214,82 @@ void writeBlank(PHOTOREADING* blank){
   }
 }
 
-void displayBlank(PHOTOREADING* blank){  
+void displaySample(PHOTOREADING* sample){  
   lcd.clear(); //clear
 
-  lcd.print("Blank(");
-  lcd.print(blank->blue);
+  lcd.print("B(");
+  lcd.print(sample->blue);
   lcd.print(")");
 
   lcd.setCursor(0, 1) ;
-  lcd.print("Blank(");
-  lcd.print(blank->green);
+  lcd.print("G(");
+  lcd.print(sample->green);
   lcd.print(")");
   delay(2000);
 }
 
-void recordBlank(MenuItem*){
-  lcd.clear();
-  lcd.print("Recording");
-  lcd.setCursor(0, 1);
-  lcd.print("Blank...");
+#define CONVTOL 2
+boolean hasConverged(PHOTOREADING* last, PHOTOREADING* current){
+  float blueDiff = abs(last->blue - current->blue);
+  float greenDiff = abs(last->green - current->green);
   
-  photometer.takeBlank();
-  
-  PHOTOREADING blank;
-  photometer.getBlank(&blank);
-  displayBlank(&blank);
-  writeBlank(&blank);
+  if(blueDiff <= CONVTOL && greenDiff <= CONVTOL){
+    lcd.clear();
+    lcd.print("Converged!");
+    delay(1500);
+    displaySample(current);
+    return true;
+  } else {
+    lcd.clear();
+    lcd.print("Not Converged...");
+    delay(1000);
+    lcd.clear();
+    
+    lcd.print("Bdiff ");
+    lcd.print(blueDiff);
+    lcd.setCursor(0, 1);
+    lcd.print("Gdiff ");
+    lcd.print(greenDiff);
+    
+    delay(1500);
+    return false;
+  }
 }
 
-/*
-void blankSampleHandler(int lcd_key){
+void recordingBlank(int lcd_key){
+  displayRecording();
+  
+  PHOTOREADING lastBlank;
+  photometer.getBlank(&lastBlank);
+  
+  PHOTOREADING currentBlank;
   photometer.takeBlank();
+  photometer.getBlank(&currentBlank);
   
-  PHOTOREADING blank;
-  photometer.getBlank(&blank, NULL);
-  displayBlank(&blank);
-  
-  lcd.clear();
-  lcd.print("B: ");
-  lcd.print(blank.blue);
-  lcd.setCursor(0,1);
-  lcd.print("G: ");
-  lcd.print(blank.green);
-  
-  delay(500);
+  if(hasConverged(&lastBlank, &currentBlank)){
+    writeBlank(&currentBlank);
+    returnToMainMenu();
+  } else if(lcd_key != btnNONE){
+    returnToMainMenu();
+  }
 }
-*/
+
+void displayRecording(){
+  lcd.clear();
+  lcd.print("Recording...");  
+}
+
+void recordBlank(MenuItem*){
+  displayRecording();
+  photometer.takeBlank();
+  currentDisplayHandler = recordingBlank;
+}
 
 void displayBlankSelected(MenuItem*){
   PHOTOREADING blank;
   photometer.getBlank(&blank);
   
-  displayBlank(&blank);
+  displaySample(&blank);
 }
 
 #define SAMPLEFILEPATH "samples.csv"
@@ -337,7 +361,7 @@ void writeSample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReadi
   }
 }
 
-void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
+void displayAbsorbance(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absReading){
   lcd.clear(); 
 
   lcd.print("A1=");
@@ -354,25 +378,48 @@ void displaySample(PHOTOREADING* blank, PHOTOREADING* sample, ABSREADING* absRea
   lcd.print(sample->green);
   lcd.print(")");
   
-  delay(2000);
+  delay(5000);
 }
 
 void recordSample(MenuItem*){
-  lcd.clear();
-  lcd.print("Recording");
-  lcd.setCursor(0, 1);
-  lcd.print("Sample...");
-  
+  displayRecording();
   photometer.takeSample();
-  
-  PHOTOREADING blank, sample;
-  ABSREADING absReading;
+  currentDisplayHandler = recordingSample;
+}
+
+void recordingSample(int lcd_key){
+  PHOTOREADING blank;
   photometer.getBlank(&blank);
-  photometer.getSample(&sample);
-  photometer.getAbsorbance(&absReading);
   
-  displaySample(&blank, &sample, &absReading);
-  writeSample(&blank, &sample, &absReading);
+  if(blank.blue == 0 && blank.green == 0){
+    lcd.clear();
+    lcd.print("ERROR:");
+    lcd.setCursor(0,1);
+    lcd.print("NO BLANK");
+    delay(2000);
+    returnToMainMenu();
+    return;
+  }
+  
+  displayRecording();
+  
+  PHOTOREADING lastSample;
+  photometer.getSample(&lastSample);
+  
+  PHOTOREADING currentSample;
+  photometer.takeSample();
+  photometer.getSample(&currentSample);
+  
+  if(hasConverged(&lastSample, &currentSample)){
+    ABSREADING absReading;
+    photometer.getAbsorbance(&absReading);
+    
+    displayAbsorbance(&blank, &currentSample, &absReading);
+    writeSample(&blank, &currentSample, &absReading);
+    returnToMainMenu();
+  } else if(lcd_key != btnNONE){
+    returnToMainMenu();
+  }
 }
 
 void displayTemperature(){
@@ -396,8 +443,7 @@ void rawECHandler(int lcd_key){
   lcd.print(frequency);
     
   if(lcd_key != btnNONE){
-    currentDisplayHandler = mainMenuHandler;
-    displayMenu();
+    returnToMainMenu();
   }
 }
 
@@ -490,10 +536,15 @@ int read_LCD_buttons(){               // read the buttons
     return btnNONE;                // when all others fail, return this.
 }
 
+void returnToMainMenu(){
+  currentDisplayHandler = mainMenuHandler;
+  displayMenu();
+}
+
 void loop(){
   int lcd_key = read_LCD_buttons();
   
   currentDisplayHandler(lcd_key);
   
-  delay(150);
+  delay(200);
 }
